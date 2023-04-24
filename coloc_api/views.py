@@ -14,3 +14,9 @@ class FileView(APIView):
         print('file', file_name)
         default_storage.save(f'files/in_files/{file_name}', file)
         return Response(json.loads(json.dumps({'file_name': file_name})), status=status.HTTP_200_OK)
+
+class ColocView(APIView):
+
+    def post(self, request, *args, **kwarts):
+        print(request.data)
+        return Response({'res': '200'}, status=status.HTTP_200_OK) 
