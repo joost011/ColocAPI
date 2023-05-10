@@ -1,5 +1,4 @@
 db.sqlite3
 .env
 __pycache__/
-files/in_files/*
-files/out_files/*
+storage

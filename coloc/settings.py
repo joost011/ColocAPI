@@ -88,8 +88,25 @@ WSGI_APPLICATION = 'coloc.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'NAME': BASE_DIR / env('DB_NAME'),
     }
+}
+
+# Storage
+STORAGE = {
+    'IN_FILES_PATH': BASE_DIR / 'storage' / 'in_files',
+    'PROCESSED_FILES_PATH': BASE_DIR / 'storage' / 'processed_files',
+    'OUT_FILES_PATH': BASE_DIR / 'storage' / 'out_files',
+    'STATIC_FILES': {
+        'GENE_POSITIONS': BASE_DIR / 'storage' / 'static_files' / 'gene_position.h5',
+        'EQTLGEN':  BASE_DIR / 'storage' / 'static_files' / 'eqtlgen.h5',
+    },
+}
+
+# R-related variables
+R = {
+    'R_PATH': env('R_PATH'),
+    'COLOC_PATH': BASE_DIR / 'scripts' / 'coloc.R'
 }
 
 

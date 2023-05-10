@@ -20,5 +20,5 @@ from coloc_api import urls as coloc_urls
 
 urlpatterns = [
     # path('admin/', admin.site.urls),
-    path('coloc/', include(coloc_urls))
+    path('api/', include(coloc_urls))
 ]
