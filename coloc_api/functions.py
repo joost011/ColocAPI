@@ -149,19 +149,8 @@ def process_file(file_name):
         df['varbeta'] = df['standard_error']**2
         # df.loc[df['variant_id'].isna(), "variant_id"] = pd.util.testing.rands_array(10, sum(df['variant_id'].isnull()))
         df.rename(columns={'variant_id': 'snp'}, inplace=True)
-
-        # Calculate -log10(p) for snps that have a p-value greater then 0
-        df_p_not_zero = df.loc[df['p_value'] != 0]
-        df_p_not_zero['logp'] = -np.log10(df_p_not_zero['p_value'])
-
-        # Set -log10(p) to a very low default value for snps that have a p-value of exactly 0
-        df_p_zero = df.loc[df['p_value'] == 0]
-        df_p_zero['logp'] = 1000 * 10**-8
-
-        # Concatenate dataframes back together
-        df = pd.concat([df_p_not_zero, df_p_zero], ignore_index=True)
-
-        print(df)
+        df.loc[df['p_value'] == 0, 'p_value'] = 2.22e-308
+        df['logp'] = -np.log10(df['p_value'])
         
         # Loop through all genes
         for gene in gene_ids:
