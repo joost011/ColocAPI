@@ -99,7 +99,7 @@ def process_file(file_name):
     for chromosome, windows in window_dict.items():
         for window in windows:
             c = f'chr{chromosome}'
-            data = gene_store.select('genes', where='chromosome == c and start >= window[0] and end <= window[1]')
+            data = gene_store.select('genes', where='chromosome == c and ((start >= window[0] and start <= window[1]) or (end >= window[0] and end <= window[1]))')
             num_genes += len(df)
             update_status(uuid, f'{num_genes} genes found in windows of significant snips')
             genes.append(data)
@@ -144,6 +144,8 @@ def process_file(file_name):
 
     # Loop throug GWAS again, now that we know the location of the genes
     for df in pd.read_csv(file_path, sep='\t', comment='#', chunksize=1000000):
+
+        df = df[['variant_id', 'chromosome', 'base_pair_location', 'p_value', 'beta', 'standard_error']]
 
         # Do some data processing
         df['varbeta'] = df['standard_error']**2

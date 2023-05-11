@@ -9,6 +9,8 @@ import sqlite3
 from .functions import coloc
 from .models import ColocAnalysis
 from .serializers import ColocAnalysisSerializer
+from django.conf import settings
+
 class FileView(APIView):
 
     def post(self, request, *args, **kwargs):
@@ -46,10 +48,7 @@ class ResultView(APIView):
     
     def get(self, request, *args, **kwargs):
         uuid = kwargs['uuid']
-        out_files_dir = 'C:\\Users\\joost\\OneDrive\\Documents\\master\\coloc_project\\django\\coloc\\files\\out_files\\'
-        output_path = out_files_dir + uuid + '\\output.json'
+        output_path = settings.STORAGE['OUT_FILES_PATH'] / uuid / 'output.json'
         with open(output_path, 'r') as file:
             data = json.load(file)
-        # data = json.load(output_path)
-        # print(type(data))
         return Response(data, status=status.HTTP_200_OK) 
