@@ -190,8 +190,8 @@ def process_file(file_name):
     for gene, row in gwas_gene_dict.items():
         print(gene)
         data = pd.read_hdf(settings.STORAGE['STATIC_FILES']['EQTLGEN'], key='eqtls', where='Gene == gene')
-        gwas_snips = row['snp'].tolist()
-        data = data[data['snp'].isin(gwas_snips)]
+        # gwas_snips = row['snp'].tolist()
+        # data = data[data['snp'].isin(gwas_snips)]
         eqtl_gene_dict[gene] = data
         update_status(uuid, f'{len(data)} snips for gene {gene} retrieved from the eQTLGen dataset ({len(eqtl_gene_dict)}/{len(gwas_gene_dict)})')
         # break 
@@ -203,19 +203,37 @@ def process_file(file_name):
     # Finally, loop through all the genes in the GWAS gene dict that is just filled
     for k, v in gwas_gene_dict.items():
 
+        # Store total number of GWAS and eQTL snps in variables
+        total_gwas_snips = len(v)
+        total_eqtl_snips = len(eqtl_gene_dict[k])
+
+        # Calculate intersecting snps
         eqtl_snips = eqtl_gene_dict[k]['snp'].tolist()
         v = v.loc[v['snp'].isin(eqtl_snips)]
+        gwas_snips = v['snp'].tolist()
+        eqtl_gene_dict[k] = eqtl_gene_dict[k].loc[eqtl_gene_dict[k]['snp'].isin(gwas_snips)]
+
+        # Store total number of intersecting snips in variable
+        total_intersecting_snips = len(v)
 
         # If the length of the data in the GWAS dict and the eQTLGEN dict is not 0, write them to a JSON file, which can later be loaded in the Coloc R script
         if len(v) > 0 and len(eqtl_gene_dict[k]) > 0:
-            location_dict = {
+
+            meta_data = {
+                'total_gwas_snps': total_gwas_snips,
+                'total_eqtl_snps': total_eqtl_snips,
+                'total_intersecting_snps': total_intersecting_snips,
                 'chromosome': gene_positions_dict[k][2],
                 'start_position': gene_positions_dict[k][0],
                 'stop_position': gene_positions_dict[k][1],
                 'gene_name': gene_positions_dict[k][3],
             }
 
-            d = {'location': location_dict, 'gwas': v.to_dict(orient='list'), 'eqtls': eqtl_gene_dict[k].to_dict(orient='list')}
+            d = {
+                'meta_data': meta_data,
+                'gwas': v.to_dict(orient='list'), 
+                'eqtls': eqtl_gene_dict[k].to_dict(orient='list')
+                 }
 
             gene_file_name = k + '.json'
             with open(settings.STORAGE['PROCESSED_FILES_PATH'] / uuid / gene_file_name, 'w') as out_file:
@@ -238,7 +256,9 @@ def process_file(file_name):
 
     directory = settings.STORAGE['OUT_FILES_PATH'] / uuid
 
-    res_dict = {}
+    res_dict = {
+        'genes': {},
+    }
 
     for filename in os.listdir(directory):
         f = os.path.join(directory, filename)
@@ -246,8 +266,12 @@ def process_file(file_name):
 
         with open(f, 'r') as input:
             data = json.load(input)
-            res_dict[gene] = data['datasets']
+            res_dict['genes'][gene] = data['datasets']
 
+    res_dict['total_tested_genes'] = len(os.listdir(settings.STORAGE['PROCESSED_FILES_PATH'] / uuid))
+    res_dict['total_colocalizing_genes'] = len(os.listdir(directory))
+    res_dict['total_gwas_snps'] = sum([v['meta_data']['total_gwas_snps'] for k, v in res_dict['genes'].items()])
+    res_dict['total_eqtl_snps'] = sum([v['meta_data']['total_eqtl_snps'] for k, v in res_dict['genes'].items()])
 
     with open(settings.STORAGE['OUT_FILES_PATH'] / uuid / 'output.json', 'w') as output:
         update_status(uuid, f'Done!', True)
