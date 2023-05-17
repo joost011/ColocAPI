@@ -47,10 +47,7 @@ def update_status(uuid, message, finished=False):
     conn.close()
 
 
-def process_file(file_name):
-    file_path = settings.STORAGE['IN_FILES_PATH'] / file_name
-    uuid = file_name.split('.')[0]
-
+def get_windows(file_path, uuid):
     window_dict = {}
     num_significant_snips = 0
 
@@ -58,7 +55,7 @@ def process_file(file_name):
     for df in pd.read_csv(file_path, sep='\t', comment='#', chunksize=1000000):
         
         # Identify significant snips (cutoff of 5 × 10−8)
-        df = df.loc[df['p_value'] < 0.00000005]
+        df = df.loc[df['p_value'] < 5e-8]
 
         # Update analysis total number of significant snips found
         num_significant_snips += len(df)
@@ -87,9 +84,12 @@ def process_file(file_name):
                 window_dict[k] = merged_windows
 
         update_status(uuid, f'{num_significant_snips} significant snips found on {len(window_dict)} chromosomes')
-            # break
 
-    # Open de gencode file (file with position data of snips)
+    return window_dict
+    
+    
+def get_genes(window_dict, uuid):
+     # Open de gencode file (file with position data of snips)
     print(settings.STORAGE['STATIC_FILES']['GENE_POSITIONS'])
     gene_store = pd.HDFStore(settings.STORAGE['STATIC_FILES']['GENE_POSITIONS'])
     genes = []
@@ -100,15 +100,18 @@ def process_file(file_name):
         for window in windows:
             c = f'chr{chromosome}'
             data = gene_store.select('genes', where='chromosome == c and ((start >= window[0] and start <= window[1]) or (end >= window[0] and end <= window[1]))')
-            num_genes += len(df)
+            num_genes += len(data)
             update_status(uuid, f'{num_genes} genes found in windows of significant snips')
             genes.append(data)
-
-
+            
     gene_store.close()
-
+    
     update_status(uuid, f'A total of {num_genes} was found in the windows of the significant snips')
+    
+    return genes
 
+
+def get_gene_info(genes):
     # Create a list with all gene ids
     gene_ids = [df['gene_id'].to_list() for df in genes]
     gene_ids = list(itertools.chain(*gene_ids))
@@ -138,7 +141,11 @@ def process_file(file_name):
 
     # Put the items of the combined list to a dict with the corresponding gene as key
     gene_positions_dict = {gene_ids[i]: gene_positions[i] for i in range(len(gene_ids))}
+    
+    return gene_ids, gene_positions_dict
 
+
+def obtain_gwas_snps(file_path, gene_ids, gene_positions_dict, uuid):
     gwas_gene_dict = {}
     num_gwas_snips = 0
 
@@ -182,20 +189,23 @@ def process_file(file_name):
             num_gwas_snips += len(data)
             update_status(uuid, f'A total of {num_gwas_snips} snips selected for {len(gwas_gene_dict)} genes from GWAS data')
 
-            # break
+    return gwas_gene_dict
 
+
+def obtain_eqtl_snps(gwas_gene_dict, uuid):
     eqtl_gene_dict = {}
-
+    print('in obtain eqtl')
     # For every gene, retrieve the snips from eQTLGEN dataset
     for gene, row in gwas_gene_dict.items():
         print(gene)
         data = pd.read_hdf(settings.STORAGE['STATIC_FILES']['EQTLGEN'], key='eqtls', where='Gene == gene')
-        # gwas_snips = row['snp'].tolist()
-        # data = data[data['snp'].isin(gwas_snips)]
         eqtl_gene_dict[gene] = data
         update_status(uuid, f'{len(data)} snips for gene {gene} retrieved from the eQTLGen dataset ({len(eqtl_gene_dict)}/{len(gwas_gene_dict)})')
-        # break 
+    
+    return eqtl_gene_dict
 
+
+def prepare_coloc_data(gwas_gene_dict, eqtl_gene_dict, gene_positions_dict, uuid):
     os.mkdir(settings.STORAGE['PROCESSED_FILES_PATH'] / uuid)
 
     written_genes = []
@@ -241,9 +251,11 @@ def process_file(file_name):
                 written_genes.append(k)
                 update_status(uuid, f'{len(written_genes)} overlapping genes found and prepared for colocalization analysis')
 
+    return written_genes
 
+
+def perform_coloc_all_genes(written_genes, uuid):
     os.mkdir(settings.STORAGE['OUT_FILES_PATH'] / uuid)
-
     genes_analysed = 0
 
     for gene in written_genes:
@@ -251,11 +263,11 @@ def process_file(file_name):
         genes_analysed += 1
         update_status(uuid, f'Colocalization analysis performed for {genes_analysed}/{len(written_genes)} genes')
 
+
+def create_output_file(uuid):
     
     update_status(uuid, f'Preparing output file')
-
     directory = settings.STORAGE['OUT_FILES_PATH'] / uuid
-
     res_dict = {
         'genes': {},
     }
@@ -276,3 +288,20 @@ def process_file(file_name):
     with open(settings.STORAGE['OUT_FILES_PATH'] / uuid / 'output.json', 'w') as output:
         update_status(uuid, f'Done!', True)
         json.dump(res_dict, output)
+
+
+def process_file(file_name):
+    file_path = settings.STORAGE['IN_FILES_PATH'] / file_name
+    uuid = file_name.split('.')[0]
+    window_dict = get_windows(file_path, uuid)
+    genes = get_genes(window_dict, uuid)
+    # in the fututre: from here per gene
+    gene_ids, gene_positions_dict = get_gene_info(genes)
+    
+    gwas_gene_dict = obtain_gwas_snps(file_path, gene_ids, gene_positions_dict, uuid)
+    eqtl_gene_dict = obtain_eqtl_snps(gwas_gene_dict, uuid)
+        
+    written_genes = prepare_coloc_data(gwas_gene_dict, eqtl_gene_dict, gene_positions_dict, uuid)
+    perform_coloc_all_genes(written_genes, uuid)
+    create_output_file(uuid)
+    
