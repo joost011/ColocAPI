@@ -171,8 +171,8 @@ def obtain_gwas_snps(file_path, gene_ids, gene_positions_dict, uuid):
 
             # Select all snips from GWAS data for every gene
             data = df.loc[
-                    (df['base_pair_location'] >= int(gene_positions_dict[gene][0]) - 1000000) & 
-                    (df['base_pair_location'] <= int(gene_positions_dict[gene][1]) + 1000000) &
+                    (df['base_pair_location'] >= int(gene_positions_dict[gene][0]) - 100_000) & 
+                    (df['base_pair_location'] <= int(gene_positions_dict[gene][1]) + 100_000) &
                     (df['chromosome'] == chromosome)
                 ]
             
