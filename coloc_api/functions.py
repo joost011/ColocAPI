@@ -19,6 +19,42 @@ def coloc(file_name):
     return output
 
 
+def process_file(file_name):
+    file_path = settings.STORAGE['IN_FILES_PATH'] / file_name
+    uuid = file_name.split('.')[0]
+    window_dict = get_windows(file_path, uuid)
+    genes = get_genes(window_dict, uuid)
+    gene_ids, gene_positions_dict = get_gene_info(genes)
+
+    os.mkdir(settings.STORAGE['PROCESSED_FILES_PATH'] / uuid)
+    os.mkdir(settings.STORAGE['OUT_FILES_PATH'] / uuid)
+
+    update_status(uuid, f'A total of {len(gene_ids)} genes is found in the windows of the significant SNPs')
+
+    for i in range(len(gene_ids)):
+        gene_id = gene_ids[i]
+        gene_position = gene_positions_dict[gene_ids[i]]
+
+        process_gene(file_path, uuid, gene_id, gene_position)
+        update_status(uuid, f'Colocalization analysis performed for {i + 1}/{len(gene_ids)} genes')            
+    
+    update_status(uuid, f'Preparing output file')
+    create_output_file(uuid)
+
+
+def process_gene(file_path, uuid, gene_id, gene_position):
+    gwas_snps = obtain_gwas_snps(file_path, gene_id, gene_position, uuid)
+
+    if len(gwas_snps) > 0:
+        eqtl_snps = obtain_eqtl_snps(gene_id, uuid)
+
+        if len(eqtl_snps) > 0:
+            # prepare_coloc_data(gene_id, eqtl_snps, gwas_snps, gene_position, uuid)
+
+            if prepare_coloc_data(gene_id, eqtl_snps, gwas_snps, gene_position, uuid):
+                perform_coloc_all_genes(gene_id, uuid)
+
+
 def merge_windows(arr):
         '''Function that clusters an array of windows'''
         arr.sort(key=lambda x: x[0])
@@ -90,7 +126,6 @@ def get_windows(file_path, uuid):
     
 def get_genes(window_dict, uuid):
      # Open de gencode file (file with position data of snips)
-    print(settings.STORAGE['STATIC_FILES']['GENE_POSITIONS'])
     gene_store = pd.HDFStore(settings.STORAGE['STATIC_FILES']['GENE_POSITIONS'])
     genes = []
     num_genes = 0
@@ -105,9 +140,7 @@ def get_genes(window_dict, uuid):
             genes.append(data)
             
     gene_store.close()
-    
-    update_status(uuid, f'A total of {num_genes} was found in the windows of the significant snips')
-    
+        
     return genes
 
 
@@ -145,9 +178,8 @@ def get_gene_info(genes):
     return gene_ids, gene_positions_dict
 
 
-def obtain_gwas_snps(file_path, gene_ids, gene_positions_dict, uuid):
-    gwas_gene_dict = {}
-    num_gwas_snips = 0
+def obtain_gwas_snps(file_path, gene_id, gene_positions_dict, uuid):
+    snps = None
 
     # Loop throug GWAS again, now that we know the location of the genes
     for df in pd.read_csv(file_path, sep='\t', comment='#', chunksize=1000000):
@@ -162,111 +194,86 @@ def obtain_gwas_snps(file_path, gene_ids, gene_positions_dict, uuid):
         df['logp'] = -np.log10(df['p_value'])
         
         # Loop through all genes
-        for gene in gene_ids:
+        # for gene in gene_ids:
             
-            if gene_positions_dict[gene][2] != '':
-                chromosome = int(gene_positions_dict[gene][2])
-            else:
-                chromosome = gene_positions_dict[gene][2]
+        if gene_positions_dict[2] != '':
+            chromosome = int(gene_positions_dict[2])
+        else:
+            chromosome = gene_positions_dict[2]
 
-            # Select all snips from GWAS data for every gene
-            data = df.loc[
-                    (df['base_pair_location'] >= int(gene_positions_dict[gene][0]) - 100_000) & 
-                    (df['base_pair_location'] <= int(gene_positions_dict[gene][1]) + 100_000) &
-                    (df['chromosome'] == chromosome)
-                ]
-            
-            # Add the data to a dict, with gene ids as key
-            if len(data) > 0:
-                try:
-                    gwas_gene_dict[gene].append(data)
-                except:
-                    gwas_gene_dict[gene] = data
+        # Select all snips from GWAS data for every gene
+        data = df.loc[
+                (df['base_pair_location'] >= int(gene_positions_dict[0]) - 100_000) & 
+                (df['base_pair_location'] <= int(gene_positions_dict[1]) + 100_000) &
+                (df['chromosome'] == chromosome)
+            ]
+        
+        # Add the data to a dict, with gene ids as key
+        if len(data) > 0:
+            try:
+                snps.append(data)
+            except:
+                snps = data
 
-                # Remove duplicate snips (keep the first for now)
-                gwas_gene_dict[gene].drop_duplicates(subset='snp', keep='first', inplace=True)
-
-            num_gwas_snips += len(data)
-            update_status(uuid, f'A total of {num_gwas_snips} snips selected for {len(gwas_gene_dict)} genes from GWAS data')
-
-    return gwas_gene_dict
+            # Remove duplicate snips (keep the first for now)
+            data.drop_duplicates(subset='snp', inplace=True)
 
 
-def obtain_eqtl_snps(gwas_gene_dict, uuid):
-    eqtl_gene_dict = {}
-    print('in obtain eqtl')
-    # For every gene, retrieve the snips from eQTLGEN dataset
-    for gene, row in gwas_gene_dict.items():
-        print(gene)
-        data = pd.read_hdf(settings.STORAGE['STATIC_FILES']['EQTLGEN'], key='eqtls', where='Gene == gene')
-        eqtl_gene_dict[gene] = data
-        update_status(uuid, f'{len(data)} snips for gene {gene} retrieved from the eQTLGen dataset ({len(eqtl_gene_dict)}/{len(gwas_gene_dict)})')
+    return snps
+
+def obtain_eqtl_snps(gene_id, uuid):
+    print(gene_id)
+    data = pd.read_hdf(settings.STORAGE['STATIC_FILES']['EQTLGEN'], key='eqtls', where='Gene == gene_id')    
+    return data
+
+
+def prepare_coloc_data(gene_id, eqtl_snips, gwas_snips, gene_positions, uuid):
+    # Store total number of GWAS and eQTL snps in variables
+    total_gwas_snips = len(gwas_snips)
+    total_eqtl_snips = len(eqtl_snips)
+
+    # Get intersecting snps
+    eqtl_snips_list = eqtl_snips['snp'].tolist()
+    gwas_snips = gwas_snips.loc[gwas_snips['snp'].isin(eqtl_snips_list)]
+    gwas_snips_list = gwas_snips['snp'].tolist()
+    gwas_snips = gwas_snips.loc[gwas_snips['snp'].isin(gwas_snips_list)]
+
+    # Store total number of intersecting snips in variable
+    total_intersecting_snips = len(gwas_snips)
+
+    # If the length of the data in the GWAS dict and the eQTLGEN dict is not 0, write them to a JSON file, which can later be loaded in the Coloc R script
+    if len(gwas_snips) > 0 and len(gwas_snips) > 0:
+
+        meta_data = {
+            'total_gwas_snps': total_gwas_snips,
+            'total_eqtl_snps': total_eqtl_snips,
+            'total_intersecting_snps': total_intersecting_snips,
+            'chromosome': gene_positions[2],
+            'start_position': gene_positions[0],
+            'stop_position': gene_positions[1],
+            'gene_name': gene_positions[3],
+        }
+
+        d = {
+            'meta_data': meta_data,
+            'gwas': gwas_snips.to_dict(orient='list'), 
+            'eqtls': eqtl_snips.to_dict(orient='list')
+                }
+
+        gene_file_name = gene_id + '.json'
+        with open(settings.STORAGE['PROCESSED_FILES_PATH'] / uuid / gene_file_name, 'w') as out_file:
+            out_file.write(json.dumps(d))
+
+        return True
     
-    return eqtl_gene_dict
+    return False
 
 
-def prepare_coloc_data(gwas_gene_dict, eqtl_gene_dict, gene_positions_dict, uuid):
-    os.mkdir(settings.STORAGE['PROCESSED_FILES_PATH'] / uuid)
-
-    written_genes = []
-
-    # Finally, loop through all the genes in the GWAS gene dict that is just filled
-    for k, v in gwas_gene_dict.items():
-
-        # Store total number of GWAS and eQTL snps in variables
-        total_gwas_snips = len(v)
-        total_eqtl_snips = len(eqtl_gene_dict[k])
-
-        # Calculate intersecting snps
-        eqtl_snips = eqtl_gene_dict[k]['snp'].tolist()
-        v = v.loc[v['snp'].isin(eqtl_snips)]
-        gwas_snips = v['snp'].tolist()
-        eqtl_gene_dict[k] = eqtl_gene_dict[k].loc[eqtl_gene_dict[k]['snp'].isin(gwas_snips)]
-
-        # Store total number of intersecting snips in variable
-        total_intersecting_snips = len(v)
-
-        # If the length of the data in the GWAS dict and the eQTLGEN dict is not 0, write them to a JSON file, which can later be loaded in the Coloc R script
-        if len(v) > 0 and len(eqtl_gene_dict[k]) > 0:
-
-            meta_data = {
-                'total_gwas_snps': total_gwas_snips,
-                'total_eqtl_snps': total_eqtl_snips,
-                'total_intersecting_snps': total_intersecting_snips,
-                'chromosome': gene_positions_dict[k][2],
-                'start_position': gene_positions_dict[k][0],
-                'stop_position': gene_positions_dict[k][1],
-                'gene_name': gene_positions_dict[k][3],
-            }
-
-            d = {
-                'meta_data': meta_data,
-                'gwas': v.to_dict(orient='list'), 
-                'eqtls': eqtl_gene_dict[k].to_dict(orient='list')
-                 }
-
-            gene_file_name = k + '.json'
-            with open(settings.STORAGE['PROCESSED_FILES_PATH'] / uuid / gene_file_name, 'w') as out_file:
-                out_file.write(json.dumps(d))
-                written_genes.append(k)
-                update_status(uuid, f'{len(written_genes)} overlapping genes found and prepared for colocalization analysis')
-
-    return written_genes
-
-
-def perform_coloc_all_genes(written_genes, uuid):
-    os.mkdir(settings.STORAGE['OUT_FILES_PATH'] / uuid)
-    genes_analysed = 0
-
-    for gene in written_genes:
-        subprocess.call([settings.R['R_PATH'], settings.R['COLOC_PATH'], gene, uuid])
-        genes_analysed += 1
-        update_status(uuid, f'Colocalization analysis performed for {genes_analysed}/{len(written_genes)} genes')
+def perform_coloc_all_genes(gene_id, uuid):
+    subprocess.call([settings.R['R_PATH'], settings.R['COLOC_PATH'], gene_id, uuid])
 
 
 def create_output_file(uuid):
-    
-    update_status(uuid, f'Preparing output file')
     directory = settings.STORAGE['OUT_FILES_PATH'] / uuid
     res_dict = {
         'genes': {},
@@ -290,18 +297,5 @@ def create_output_file(uuid):
         json.dump(res_dict, output)
 
 
-def process_file(file_name):
-    file_path = settings.STORAGE['IN_FILES_PATH'] / file_name
-    uuid = file_name.split('.')[0]
-    window_dict = get_windows(file_path, uuid)
-    genes = get_genes(window_dict, uuid)
-    # in the fututre: from here per gene
-    gene_ids, gene_positions_dict = get_gene_info(genes)
-    
-    gwas_gene_dict = obtain_gwas_snps(file_path, gene_ids, gene_positions_dict, uuid)
-    eqtl_gene_dict = obtain_eqtl_snps(gwas_gene_dict, uuid)
-        
-    written_genes = prepare_coloc_data(gwas_gene_dict, eqtl_gene_dict, gene_positions_dict, uuid)
-    perform_coloc_all_genes(written_genes, uuid)
-    create_output_file(uuid)
+
     
