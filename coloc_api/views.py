@@ -1,5 +1,6 @@
 from django.core.files.storage import default_storage
 from rest_framework.response import Response
+from django.http import FileResponse
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework import serializers
@@ -10,6 +11,7 @@ from .functions import coloc
 from .models import ColocAnalysis
 from .serializers import ColocAnalysisSerializer
 from django.conf import settings
+from .services.ExportService import ExportService
 
 class FileView(APIView):
 
@@ -52,3 +54,14 @@ class ResultView(APIView):
         with open(output_path, 'r') as file:
             data = json.load(file)
         return Response(data, status=status.HTTP_200_OK) 
+
+
+class ExportView(APIView):
+
+    def post(self, request, *args, **kwargs):
+        uuid = request.data['uuid']
+        export_file_path = ExportService.exportToCSV(uuid)
+        file = open(export_file_path, 'rb')
+        response = FileResponse(file, content_type='application/json')
+        response['Content-Disposition'] = f'attachment; filename="{uuid}.csv"'
+        return response
