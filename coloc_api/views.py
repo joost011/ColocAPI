@@ -60,7 +60,15 @@ class ExportView(APIView):
 
     def post(self, request, *args, **kwargs):
         uuid = request.data['uuid']
-        export_file_path = ExportService.exportToCSV(uuid)
+        export_type = request.data['export_type']
+
+        if export_type == 'csv_all':
+            export_file_path = ExportService.exportAllToCSV(uuid)
+
+        if export_type == 'csv_gene':
+            gene = request.data['gene']
+            export_file_path = ExportService.exportGeneToCSV(uuid, gene)
+
         file = open(export_file_path, 'rb')
         response = FileResponse(file, content_type='application/json')
         response['Content-Disposition'] = f'attachment; filename="{uuid}.csv"'
