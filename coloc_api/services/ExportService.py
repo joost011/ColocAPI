@@ -1,5 +1,6 @@
 from django.conf import settings
 import json
+import pandas as pd
 
 class ExportService:
 
@@ -37,24 +38,42 @@ class ExportService:
     def exportGeneToCSV(cls, uuid, gene):
         # Load data from file
         data = cls.__load_data_from_file(uuid)
+        data = data['genes'][gene]
 
         # Create output file name and path
         file_directory = settings.STORAGE['OUT_FILES_PATH'] / uuid
         csv_file_name = f'{gene}_{uuid}.csv'
         csv_file_path = file_directory / csv_file_name
 
-        # Format data
-        columns = ['SNP,Position,PPH4,\n']
-        snp_list = data['genes'][gene]['gwas']['snp']
-        location_list = data['genes'][gene]['eqtls']['SNPPos']
-        pph4_list = data['genes'][gene]['coloc']
-        csv_data = [','.join([str(snp_list[i]), str(location_list[i]), str(pph4_list[i]), '\n']) for i in range(len(snp_list))]
-        rows = columns + csv_data
+        # Process GWAS data
+        gwas_data = data['gwas']
+        gwas_df = pd.DataFrame.from_dict(gwas_data)
+        gwas_df = gwas_df[['snp', 'p_value']]
+        gwas_df.rename(columns={'p_value': 'gwas_p_value'}, inplace=True)
 
-        with open(csv_file_path, 'w') as out_file:
-            out_file.writelines(rows)
+        # Process eQTL data
+        eqtl_data = data['eqtls']
+        eqtl_df = pd.DataFrame.from_dict(eqtl_data)
+        eqtl_df = eqtl_df[['snp', 'pvalues', 'Zscore', 'SNPPos']]
+        eqtl_df.rename(columns={'pvalues': 'eqtl_p_value', 'Zscore': 'eqtl_z_score', 'SNPPos': 'snp_position'}, inplace=True)
+
+        # Process coloc data
+        coloc_data = data['coloc']
+        coloc_df = pd.DataFrame.from_dict(coloc_data)
+        coloc_df.rename(columns={'SNP.PP.H4': 'pph4'}, inplace=True)
+
+        # Merge dataframes
+        merged_df = pd.merge(gwas_df, eqtl_df, on='snp')
+        merged_df = pd.merge(merged_df, coloc_df, on='snp')
+
+        # Sort dataframem by posterior h4 probability
+        merged_df = merged_df.sort_values('pph4', ascending=False)
+
+        # Write merged dataframe to file
+        merged_df.to_csv(csv_file_path, index=False)
 
         return csv_file_path
+    
     
     def __load_data_from_file(uuid):
         file_directory = settings.STORAGE['OUT_FILES_PATH'] / uuid
