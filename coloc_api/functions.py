@@ -105,7 +105,6 @@ def process_gene(uuid, gene_id, gene_position, gwas_snps, num_coloc):
 
     num_coloc.value += 1
     STATUS_MESSAGE.value = f'{num_coloc.value} genes processed'
-    print(STATUS_MESSAGE.value)
     STATUS_ORDER.value = 4
     # update_status(uuid, f'{num_coloc.value} genes processed', 3)
 
@@ -226,7 +225,7 @@ def get_gene_info(genes):
     # This should be altered, because the sex chromosomes are missing now
     gene_chromosomes = [df['chromosome'].to_list() for df in genes]
     gene_chromosomes = list(itertools.chain(*gene_chromosomes))
-    gene_chromosomes = [re.sub('\D', '', chromosome) for chromosome in gene_chromosomes]
+    gene_chromosomes = [re.sub('\D', '', chromosome) if re.sub('\D', '', chromosome) != '' else chromosome[-1] for chromosome in gene_chromosomes]
 
     # Combine the above created lists
     gene_positions = [(gene_start_positions[i], gene_end_positions[i], gene_chromosomes[i], gene_names[i]) for i in range(len(gene_start_positions))]
@@ -261,9 +260,9 @@ def obtain_gwas_snps(file_path, gene_ids, gene_positions_dict, uuid):
 
             gene_position = gene_positions_dict[gene]
                 
-            if gene_position[2] != '':
+            try:
                 chromosome = int(gene_position[2])
-            else:
+            except:
                 chromosome = gene_position[2]
 
             # Select all snps from GWAS data for every gene
