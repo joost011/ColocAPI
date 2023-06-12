@@ -14,22 +14,25 @@ class ExportService:
         csv_file_name = uuid + '.csv'
         csv_file_path = file_directory / csv_file_name
 
-        rows = [
-            ','.join(['Gene name', 'Gene ID', 'Chromosome', 'Tested SNPs', 'PPH4', '\n'])
-        ]
-        
+        # Create empty dataframe
+        df = pd.DataFrame(columns=['gene_name', 'gene_id', 'chromosome', 'tested_snps', 'pph4', 'top_snp'])
+
+        # Format every gene in output file and add to the empty dataframe
         for k, v in data['genes'].items():
             gene_name = v['meta_data']['gene_name']
             gene_id = k
             chromosome = v['meta_data']['chromosome']
             tested_snps = v['meta_data']['total_intersecting_snps']
             pph4 = v['posterior']['PP.H4.abf']
-            row = [gene_name, gene_id, str(chromosome), str(tested_snps), str(pph4), '\n']
-            rows.append(','.join(row))
+            top_snp = v['meta_data']['top_snp']
+            new_row = pd.DataFrame({'gene_name': [gene_name], 'gene_id': [gene_id], 'chromosome': [chromosome], 'tested_snps': [tested_snps], 'pph4': [pph4], 'top_snp': [top_snp]})
+            df = pd.concat([df, new_row], ignore_index=True)
 
+        # Sort dataframe by posterior h4 probability
+        df = df.sort_values('pph4', ascending=False)
 
-        with open(csv_file_path, 'w') as out_file:
-            out_file.writelines(rows)
+         # Write dataframe dataframe to file
+        df.to_csv(csv_file_path, index=False)
 
         return csv_file_path
     
@@ -66,7 +69,7 @@ class ExportService:
         merged_df = pd.merge(gwas_df, eqtl_df, on='snp')
         merged_df = pd.merge(merged_df, coloc_df, on='snp')
 
-        # Sort dataframem by posterior h4 probability
+        # Sort dataframe by posterior h4 probability
         merged_df = merged_df.sort_values('pph4', ascending=False)
 
         # Write merged dataframe to file
