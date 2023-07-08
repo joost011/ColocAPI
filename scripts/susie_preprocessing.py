@@ -4,17 +4,21 @@ import os
 import json
 
 def read_json(file_path):
+    """Reads the JSON file"""
     with open(file_path) as file:
         data = json.load(file)
     
     return data['datasets']
 
 def write_file(file_path, content_list):
+    """Writes every item in the content_list on a newline in the given file"""
     with open(file_path, 'w') as outfile:
         for item in content_list:
             outfile.write(item + '\n')
 
 def create_ld_matrix(gene):
+    """Creates the LD matrix"""
+    # if SuSiE works, use a config file for these file paths
     plink = 'C:\\Users\\jobma\\Documents\\School\\DSLS\\semester_2\\integrated_omics\\tests\\susie2\\plink\\plink'
     reference_panel = '..\\susie\\annotated_1000g\\t'
     
@@ -30,12 +34,14 @@ def create_ld_matrix(gene):
     return LD
     
 def get_snp_list(file_path):
+    """Gets the SNP list output that PLINK generates"""
     with open(file_path) as file:
         sorter = file.read().splitlines()
         
     return sorter 
 
 def update_df(df, column, snp_list):
+    """Removes non-intersecting SNPS with the snp_list and sorts the values by the snp_list""" 
     # remove non-intersecting snp_list
     df = df[df[column].isin(snp_list)]
     # sort list according to snp_list
@@ -44,6 +50,7 @@ def update_df(df, column, snp_list):
     return df
 
 def has_na_values(matrix):
+    """Checcks if the given matrix has NA values"""
     has_na = None
     number_na = matrix.isna().sum().sum()
     
@@ -55,6 +62,7 @@ def has_na_values(matrix):
     return has_na
 
 def remove_na_values(matrix):
+    """Removes the NA values from the given matrix"""
     contains_na = has_na_values(matrix)
     dropped_ids = []
     
@@ -68,18 +76,19 @@ def remove_na_values(matrix):
     return matrix, dropped_ids 
 
 def drop_ids(df, drop_ids):
+    """Drops the ids from the matrix"""
     for id in drop_ids:
         df.drop(df[df.snp == id].index, inplace=True)
         
     return df
 
 def write_output(file_path, data):
+    """Writes the data to the output file"""
     with open(file_path, 'w') as out_file:
         out_file.write(data)
     
 
 if __name__ == '__main__':
-    # script from Harm-Jan
     json_path = sys.argv[1]
     gene = json_path.rsplit('.', maxsplit=1)[0]
     

@@ -5,24 +5,28 @@ import json
 import sys
 
 def extract_data(file_path):
+    """Loads JSON data from a file"""
     with open(file_path) as file:
         data = json.load(file)
     
     return data
     
 def get_sorter_list(file_path):
+    """Loads the sorter list that is obtained from PLINK"""
     with open(file_path) as file:
         sorter = file.read().splitlines()
         
     return sorter   
 
 def sort_df(df, column, sorter):
+    """Sorts a dataframe based on the ocurrence of the sorter"""
     df.sort_values(by=column, key=lambda col: col.map(lambda snp: sorter.index(snp)), inplace=True)
     json_sorted = {col: df[col].values.tolist() for col in df}
     
     return json_sorted
 
 def write_output(file_path, data):
+    """Writes the output in JSON format to a file"""
     with open(file_path, 'w') as out_file:
         out_file.write(json.dumps(data))
 
