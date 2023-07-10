@@ -1,7 +1,16 @@
 from rest_framework import serializers
+from .models import ColocAnalysis, ColocAnalysisStatus
 
-class ColocAnalysisSerializer(serializers.Serializer):
-    uuid = serializers.CharField(max_length=200)
-    extension = serializers.CharField(max_length=200)
-    status_message = serializers.CharField(max_length=500)
-    finished = serializers.BooleanField()
+
+class ColocAnalysisStatusSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ColocAnalysisStatus
+        fields = '__all__'
+
+
+class ColocAnalysisSerializer(serializers.ModelSerializer):
+    status_list = ColocAnalysisStatusSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = ColocAnalysis
+        fields = ['uuid', 'extension', 'finished', 'status_list']

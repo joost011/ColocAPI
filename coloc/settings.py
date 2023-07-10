@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'coloc_api',
     'corsheaders',
+    'django_rq',
 ]
 
 MIDDLEWARE = [
@@ -89,8 +90,31 @@ WSGI_APPLICATION = 'coloc.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / env('DB_NAME'),
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': env('DB_NAME'),
+        'USER': env('DB_USER'),
+        'PASSWORD': env('DB_PASSWORD'),
+        'HOST': env('DB_HOST'),
+        'PORT': env('DB_PORT'),
+    }
+}
+
+# Redis queues
+RQ_QUEUES = {
+    'default': {
+        'HOST': 'localhost',
+        'PORT': 6379,
+        'DB': 0,
+    },
+    'high': {
+        'HOST': 'localhost',
+        'PORT': 6379,
+        'DB': 0,
+    },
+    'low': {
+        'HOST': 'localhost',
+        'PORT': 6379,
+        'DB': 0,
     }
 }
 
@@ -101,7 +125,7 @@ STORAGE = {
     'OUT_FILES_PATH': BASE_DIR / 'storage' / 'out_files',
     'STATIC_FILES': {
         'GENE_POSITIONS': BASE_DIR / 'storage' / 'static_files' / 'gene_position.h5',
-        'EQTLGEN':  BASE_DIR / 'storage' / 'static_files' / 'eqtlgen.h5',
+        'EQTLGEN':  BASE_DIR / 'storage' / 'static_files' / 'test.h5',
     },
 }
 
