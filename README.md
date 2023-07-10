@@ -39,9 +39,9 @@ pip install -r requirements.txt
 
 #### Install R packages
 Install the following R packages:
-- jsonlite
-- coloc
-- rjson
+- jsonlite (version 1.8.4)
+- coloc (version 5.2.1)
+- rjson (version 0.2.21)
 
 #### Create database
 After installing the required python and R packages, you have to create a PostgreSQL database. See the [PostgreSQL documentation](https://www.postgresql.org/docs/current/sql-createdatabase.html). This can be accomplished with the command line tool of PostgreSQL called `psql`. Mind that it might be possible that you have to add it manually to you Windows Path when using Windows. The default super user of PostgreSQL is called ```postgres```. To create a database, run the following commands in a new terminal that will create a database called ```coloc```:
