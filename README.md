@@ -9,10 +9,10 @@ It returns summary files and locus visualization plots to allow for detailed rev
 
 ### Software Requirements
 To run the code in this repository, the following software is required:
-- [Python](https://www.python.org/downloads/)
-- [R](https://www.r-project.org/)
-- [PostgreSQL](https://www.postgresql.org/download/)
-- [Redis](https://redis.io/download/)
+- [Python](https://www.python.org/downloads/) (tested under version 3.8, 3.10, and 3.11)
+- [R](https://www.r-project.org/) (tested under version 4.2.3)
+- [PostgreSQL](https://www.postgresql.org/download/) (tested under version 15)
+- [Redis](https://redis.io/download/) (tested under version 7.0.11)
 
 When all the software above is installed, follow the steps below to install the project.
 
