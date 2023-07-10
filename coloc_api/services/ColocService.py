@@ -15,7 +15,6 @@ class ColocService:
         self.status_order = self.manager.Value('i', 1)
         self.status_update = True
 
-    @job('high')
     def start_coloc(self, file_name): 
         '''Main function that initializes the colocalization process.
         It has the @job decorator from Redis so it will be run in a different process on the Redis server'''
