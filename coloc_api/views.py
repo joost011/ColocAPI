@@ -1,23 +1,24 @@
 from django.core.files.storage import default_storage
 from rest_framework.response import Response
 from django.http import FileResponse
-from django.db.models import Prefetch
 from rest_framework import status
 from rest_framework.views import APIView
-from rest_framework import serializers
 import json
 import uuid
-import sqlite3
-from .functions import coloc
 from .models import ColocAnalysis, ColocAnalysisStatus
 from .serializers import ColocAnalysisSerializer
 from django.conf import settings
+from .jobs import initialize_coloc
 from .services.ExportService import ExportService
+from .services.ColocService import ColocService
 import django_rq
+from django_rq import job
 
 class FileView(APIView):
+    '''View that handles the file related requests'''
 
     def post(self, request, *args, **kwargs):
+        '''Function that handles the post request for uploading a GWAS file'''
         file = request.data['file']
         file_extension = '.'.join(str(file).split('.')[1:])
         file_name = f'{uuid.uuid4()}.{file_extension}'
@@ -33,21 +34,29 @@ class FileView(APIView):
     
 
 class ColocView(APIView):
+    '''View that handels the coloc related requests'''
 
     def post(self, request, *args, **kwargs):
-        django_rq.enqueue(coloc, job_timeout=604800, args=(request.data['file'],))
+        '''Function that handles the post request for starting an analysis'''
+
+        django_rq.enqueue(initialize_coloc, args=(request.data['file'],))
+
+        # django_rq.enqueue(coloc, job_timeout=604800, args=(request.data['file'],))
         return Response(json.dumps({'success': True}), status=status.HTTP_200_OK) 
     
     def get(self, request, *args, **kwargs):
+        '''Function that handles the get request for getting the status of an analysis process'''
         uuid = kwargs['uuid']
         analysis = ColocAnalysis.objects.prefetch_related('status_list').get(uuid=uuid)
         serializer = ColocAnalysisSerializer(analysis)
-        return Response(serializer.data, status=status.HTTP_200_OK) 
-    
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
 
 class ResultView(APIView):
+    '''View that handles the result related requests'''
     
     def get(self, request, *args, **kwargs):
+        '''Function that handles the get request for getting results of an analysis'''
         uuid = kwargs['uuid']
         output_path = settings.STORAGE['OUT_FILES_PATH'] / uuid / 'output.json'
         with open(output_path, 'r') as file:
@@ -56,8 +65,10 @@ class ResultView(APIView):
 
 
 class ExportView(APIView):
+    '''View that handles the export related requests'''
 
     def post(self, request, *args, **kwargs):
+        '''Function that handles the post request for creating an export of an analysis'''
         uuid = request.data['uuid']
         export_type = request.data['export_type']
 

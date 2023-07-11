@@ -125,7 +125,7 @@ STORAGE = {
     'OUT_FILES_PATH': BASE_DIR / 'storage' / 'out_files',
     'STATIC_FILES': {
         'GENE_POSITIONS': BASE_DIR / 'storage' / 'static_files' / 'gene_position.h5',
-        'EQTLGEN':  BASE_DIR / 'storage' / 'static_files' / 'test.h5',
+        'EQTLGEN':  BASE_DIR / 'storage' / 'static_files' / 'eqtlgen.h5',
     },
 }
 
