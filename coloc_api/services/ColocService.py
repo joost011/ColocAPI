@@ -5,6 +5,7 @@ import multiprocessing as mp
 from django.conf import settings
 from django_rq import job
 from ..models import ColocAnalysis, ColocAnalysisStatus
+from .FileService import FileService
 
 class ColocService:
     '''Class that is responsible for performing colocalization analysis on an input file'''
@@ -28,6 +29,11 @@ class ColocService:
 
         with open(settings.STORAGE['OUT_FILES_PATH'] / uuid / 'output.json', 'r') as f:
             output = json.load(f)
+        
+        # Delete temporary files
+        FileService.delete_input_file(file_name)
+        FileService.delete_processed_files(uuid)
+        FileService.delete_processed_file_directory(uuid)
 
         return output
     
