@@ -7,12 +7,16 @@ getwd()
 args <- commandArgs(trailingOnly=TRUE)
 gene <- args[1]
 file_id <- args[2]
+coloc_type <- args[3]
+
+data$gwas$type <- coloc_type
+data$gwas$N <- as.integer(args[4])
+
+if (coloc_type == 'cc'){
+  data$gwas$s <- as.numeric(args[5])
+} 
 
 data <- fromJSON(file = paste("storage/processed_files/", file_id, "/", gene, ".json", sep=''))
-
-data$gwas$type <- 'cc'
-data$gwas$N <- 276020
-data$gwas$s <- 0.1284
 
 data$eqtls$type <- 'quant'
 

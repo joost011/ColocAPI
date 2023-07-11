@@ -1,4 +1,3 @@
-from django.core.files.storage import default_storage
 from rest_framework.response import Response
 from django.http import FileResponse
 from rest_framework import status
@@ -10,9 +9,9 @@ from .serializers import ColocAnalysisSerializer
 from django.conf import settings
 from .jobs import initialize_coloc
 from .services.ExportService import ExportService
-from .services.ColocService import ColocService
+from .services.FileService import FileService
 import django_rq
-from django_rq import job
+
 
 class FileView(APIView):
     '''View that handles the file related requests'''
@@ -22,7 +21,7 @@ class FileView(APIView):
         file = request.data['file']
         file_extension = '.'.join(str(file).split('.')[1:])
         file_name = f'{uuid.uuid4()}.{file_extension}'
-        default_storage.save(f'storage/in_files/{file_name}', file)
+        FileService.save_input_file(file, file_name)
 
         # Create database colocalization object with initial status object
         file_uuid = file_name.split('.')[0]
@@ -38,10 +37,26 @@ class ColocView(APIView):
 
     def post(self, request, *args, **kwargs):
         '''Function that handles the post request for starting an analysis'''
+        coloc_type = request.data['type']
 
-        django_rq.enqueue(initialize_coloc, args=(request.data['file'],))
+        if coloc_type == 'cc':
+            coloc_args = (
+                request.data['file'],
+                coloc_type,
+                request.data['numCases'],
+                request.data['numControls'],
+            )
+        
+        else:
+            coloc_args = (
+                request.data['file'],
+                coloc_type,
+                request.data['sampleSize'],
+            )
 
-        # django_rq.enqueue(coloc, job_timeout=604800, args=(request.data['file'],))
+        print(request.data)
+
+        django_rq.enqueue(initialize_coloc, job_timeout=604800, args=coloc_args)
         return Response(json.dumps({'success': True}), status=status.HTTP_200_OK) 
     
     def get(self, request, *args, **kwargs):

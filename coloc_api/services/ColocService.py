@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 import multiprocessing as mp
 from django.conf import settings
-from django_rq import job
 from ..models import ColocAnalysis, ColocAnalysisStatus
 from .FileService import FileService
 
@@ -16,7 +15,7 @@ class ColocService:
         self.status_order = self.manager.Value('i', 1)
         self.status_update = True
 
-    def start_coloc(self, file_name): 
+    def start_coloc(self, file_name, coloc_type, *args): 
         '''Main function that initializes the colocalization process.
         It has the @job decorator from Redis so it will be run in a different process on the Redis server'''
         uuid = file_name.split('.')[0]
@@ -24,12 +23,22 @@ class ColocService:
         status_update_process = mp.Process(target=self.schedule_status_update, args=[uuid, status_update_interval])
         status_update_process.start()
 
+        if coloc_type == 'cc':
+            num_cases = int(args[0])
+            num_controls = int(args[1])
+            num_samples = num_cases + num_controls
+            case_ratio = num_cases / (num_cases + num_controls)
+            coloc_args = (str(num_samples), str(case_ratio))
+        else:
+            num_samples = int(args[0])
+            coloc_args = (str(num_samples),)
+
         # Start analysis
-        self.process_file(file_name)
+        self.process_file(file_name, *coloc_args)
 
         with open(settings.STORAGE['OUT_FILES_PATH'] / uuid / 'output.json', 'r') as f:
             output = json.load(f)
-        
+
         # Delete temporary files
         FileService.delete_input_file(file_name)
         FileService.delete_processed_files(uuid)
@@ -64,7 +73,7 @@ class ColocService:
                 coloc_analysis_object.save()
 
 
-    def process_file(self, file_name):
+    def process_file(self, file_name, *coloc_args):
         '''Function that starts processing the input file'''
         in_file_path = settings.STORAGE['IN_FILES_PATH'] / file_name
         uuid = file_name.split('.')[0]
@@ -84,7 +93,7 @@ class ColocService:
 
         # Analyse every gene in a separate process
         with mp.Pool(mp.cpu_count() - 2) as pool:
-            args_list = [(uuid, gene_ids[i], gene_positions_dict[gene_ids[i]], gwas_snps_dict[gene_ids[i]], num_coloc) for i in range(len(gene_ids))]
+            args_list = [(uuid, gene_ids[i], gene_positions_dict[gene_ids[i]], gwas_snps_dict[gene_ids[i]], num_coloc, *coloc_args) for i in range(len(gene_ids))]
             pool.starmap(self.process_gene, args_list)
 
         self.status_message.value = 'Preparing output'
@@ -92,14 +101,15 @@ class ColocService:
         self.create_output_file(uuid)
 
 
-    def process_gene(self, uuid, gene_id, gene_position, gwas_snps, num_coloc):
+    def process_gene(self, uuid, gene_id, gene_position, gwas_snps, num_coloc, *coloc_args):
         '''Function that starts processing a gene'''
+
         if len(gwas_snps) > 0:
             eqtl_snps = self.obtain_eqtl_snps(gene_id)
 
             if len(eqtl_snps) > 0:
                 if self.prepare_coloc_data(gene_id, eqtl_snps, gwas_snps, gene_position, uuid):
-                    self.perform_coloc_all_genes(gene_id, uuid)
+                    self.perform_coloc_all_genes(gene_id, uuid, *coloc_args)
 
         num_coloc.value += 1
         self.status_message.value = f'{num_coloc.value} genes processed'
@@ -327,9 +337,11 @@ class ColocService:
         return False
 
 
-    def perform_coloc_all_genes(gene_id, uuid):
+    def perform_coloc_all_genes(gene_id, uuid, *coloc_args):
         '''Function that calls the coloc R script in a subprocess'''
-        subprocess.call(['Rscript', settings.R['COLOC_PATH'], gene_id, uuid, '--no-save'])
+        command = ['Rscript', settings.R['COLOC_PATH'], gene_id, uuid, *coloc_args, '--no-save']
+        del command[2]
+        subprocess.call(command)
 
 
     def create_output_file(self, uuid):
