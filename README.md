@@ -5,6 +5,14 @@ Colocator allows for colocalization analysis to compare genetic association data
 With Colocator you are able to upload your own GWAS summary statistics for colocalization analysis.
 It returns summary files and locus visualization plots to allow for detailed review of the results
 
+## Data
+
+This project requires two datasets:
+- A preprocessed version of the eQTLGen phase 1 dataset in HDF5 format
+- A preprocessed version of the Gencode Human Release 43 (GRCh37) file in HDF5 format
+
+For access to these datasets, contact one of the authors.
+
 ## Installation
 
 ### Software Requirements
@@ -64,6 +72,9 @@ python manage.py migrate
 ```
 
 The above command will create the necessary tables in the database.
+
+#### Create storage directory
+Finally, you have to create the storage directory of the project. In the root of the project, create a directory called ```storage```, containing four subdirectories: ```in_files```, ```out_files```, ```processed_files```, and ```static_files```. Place the two datasets mentioned earlier in this readme in the ```static_files``` directory.
 
 After following the above steps, the installation is completed.
 
